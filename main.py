@@ -77,6 +77,9 @@ parser.add_argument('--nce-m', default=0.5, type=float,
                     help='momentum for non-parametric updates')
 parser.add_argument('--iter_size', default=1, type=int,
                     help='caffe style iter size')
+parser.add_argument('--save_dir', default='', type=str,
+                            help='save model directory')
+
 
 best_prec1 = 0
 
@@ -189,11 +192,6 @@ def main():
             train_sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch)
 
-        if epoch % 50 == 0:
-            is_best = True
-        else:
-            is_best = False
-
         # train for one epoch
         train(train_loader, model, lemniscate, criterion, optimizer, epoch)
 
@@ -224,46 +222,49 @@ def train(train_loader, model, lemniscate, criterion, optimizer, epoch):
 
     end = time.time()
     optimizer.zero_grad()
-    for i, (input, _, index) in enumerate(train_loader):
-        # measure data loading time
-        data_time.update(time.time() - end)
+    try:
+        for i, (input, _, index) in enumerate(train_loader):
+            # measure data loading time
+            data_time.update(time.time() - end)
 
-        input = input.pin_memory()
+            input = input.pin_memory()
 
-        index = index.cuda(async=True)
+            index = index.cuda(async=True)
 
-        # compute output
-        feature = model(input)
-        output = lemniscate(feature, index)
-        loss = criterion(output, index) / args.iter_size
+            # compute output
+            feature = model(input)
+            output = lemniscate(feature, index)
+            loss = criterion(output, index) / args.iter_size
 
-        loss.backward()
+            loss.backward()
 
-        # measure accuracy and record loss
-        losses.update(loss.item() * args.iter_size, input.size(0))
+            # measure accuracy and record loss
+            losses.update(loss.item() * args.iter_size, input.size(0))
 
-        if (i+1) % args.iter_size == 0:
-            # compute gradient and do SGD step
-            optimizer.step()
-            optimizer.zero_grad()
+            if (i+1) % args.iter_size == 0:
+                # compute gradient and do SGD step
+                optimizer.step()
+                optimizer.zero_grad()
 
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
 
-        if i % args.print_freq == 0:
-#            with open('out.txt', 'w') as f:
-#                sys.stdout = f
-                print('Epoch: [{0}][{1}/{2}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
-                       epoch, i, len(train_loader), batch_time=batch_time,
-                       data_time=data_time, loss=losses))
-
+            if i % args.print_freq == 0:
+    #            with open('out.txt', 'w') as f:
+    #                sys.stdout = f
+                    print('Epoch: [{0}][{1}/{2}]\t'
+                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                          'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                           epoch, i, len(train_loader), batch_time=batch_time,
+                           data_time=data_time, loss=losses))
+    except:
+        print ('Fuck')
+        pass
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
+    torch.save(state, args.save_dir + filename)
     if is_best:
         shutil.copyfile(filename, 'model_best.pth.tar')
 
